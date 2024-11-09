@@ -1,0 +1,348 @@
+---
+title: "Mapping"
+subtitle: "with pptx output!!"
+author: "MA615"
+date: "2024 Nov 4"
+format: 
+  pptx:
+    reference-doc: Presentation1.pptx
+    slide-level: 1
+editor: visual
+---
+
+# Mapping systems in R {.smaller}
+
+Nico Hahn's book shows you how to make maps using:
+
+-   tmap
+-   ggplot
+-   mapview
+-   mapdeck
+-   leaflet
+
+Reference: [Nico Hahn, *Making Maps with R*](https://bookdown.org/nicohahn/making_maps_with_r5/docs/introduction.html)
+
+Find the data for examples in this repo: [github.com/nicoFhahn/making_maps_with_r](https://github.com/nicoFhahn/making_maps_with_r)
+
+# Making Powerpoint presentations with Quarto
+
+[Powerpoint layout mappings](https://quarto.org/docs/presentations/powerpoint.html#:~:text=Slide%20Layouts,-When%20creating%20slides%2C%20the)
+
+[quarto formatting](https://quarto.org/docs/reference/formats/presentations/pptx.html#slides)
+
+# Packages
+
+::: columns
+::: {.column width="50%"}
+-   General
+    -   tidyverse
+-   Mapping
+    -   tmap
+-   Data loading
+    -   raster
+    -   readr
+    -   readxl
+    -   sf
+:::
+
+::: {.column width="50%"}
+-   Datasets
+    -   maps
+    -   spData
+-   Animation
+    -   magick
+-   Plotting
+    -   grid
+    -   tmap
+    -   viridis
+:::
+:::
+
+```{r}
+#| label: libraries
+#| warning: false
+#| message: false
+#| echo: false
+
+library(tidyverse)
+library(tmap)
+# for loading our data
+library(raster)
+library(readr)
+library(readxl)
+library(sf)
+# for datasets
+library(maps)
+library(spData)
+# for creating animations
+library(magick)
+# for plotting
+library(grid)
+library(tmap)
+library(viridis)
+library(sp)
+library(raster)
+
+
+```
+
+# Data
+
+The code chunk on this slide loads mapping data for:
+
+-   Baveria
+-   European cities
+-   Honey production in the us
+
+Review the code used to make the maps **and** make the slides!
+
+```{r}
+#| label: data
+#| warning: false
+#| message: false
+#| echo: false
+
+
+## load the data for Chapter 2 tmaps
+ch2 <- "making_maps_with_r-master/datasets/chapter_2/"
+
+# # load shapefile for bavaria
+bavaria <- read_sf(paste0(ch2,"bavaria.shp"))
+# nicer colnames
+colnames(bavaria) <- c(
+  "place", "type", "gdp_per_capita", "mean_age",
+  "pop_density", "unemployment_rate",
+  "employment_rate", "household_income",
+  "students", "pop_development", "geometry"
+)
+# # load europe elevation raster file 
+europe_raster <- raster(paste0(ch2,"elevation1x1_new.tif"))
+# # load shapefile for world
+world_shape <- read_sf(paste0(ch2,"ne_50m_admin_0_countries.shp"))
+# # keep only europe
+europe_shape <- world_shape[world_shape$CONTINENT == "Europe",]
+# # use world.cities from the maps package
+# # keep only cities with at least 1 million inhabitants
+cities <- world.cities[world.cities$pop >= 1000000, ]
+# # turn it into an sf object
+cities <- cities %>%
+   st_as_sf(coords = c("long", "lat"), crs = 4326) %>%
+   st_cast("POINT")
+# # keep only the cities that are in europe
+cities <- st_intersection(cities, st_union(europe_shape))
+# # turn the europe object into a MULTILINESTRING
+europe_shape <- st_cast(europe_shape, "MULTILINESTRING")
+
+# load the commonuties of bavaria
+communities <- read_sf(paste0(ch2,"gmd_ex.shp"))
+# # keep only the ones in rosenheim
+rosenheim <- communities[communities$BEZ_KRS == "Rosenheim", ]
+
+# # load the csv file for honey production in the us
+
+honey_csv <- read_csv(paste0(ch2,"honeyproduction.csv"))
+# # load the xlsx file for abbreviations of the us states
+
+abbrev <- read_xlsx(paste0(ch2,"abbrev.xlsx"))
+
+# # load honey shapefile
+
+honey_sf <- read_sf(paste0(ch2,"honey.shp"))
+# 
+
+colnames(honey_sf)[3:8] <- c(
+  "Number_of_colonies", "Yield_per_colony",
+  "Total_production", "Stocks","Price_per_lb",
+  "Value_of_production"
+  )
+
+
+```
+
+# tmap: Thematic Maps
+
+-   Geographical maps
+    -   Layer based (like ggplot2)
+    -   Flexible and easy
+    -   Good for choropoleths & bubble maps
+    -   Reference [tmap package](https://cran.r-project.org/web/packages/tmap/index.html)
+
+**Note how the code is ordered.**\
+\* At the beginning, `tm_shape()` is passed a dataset.\
+\* then, one or more levels define the type of display.\
+\* Examples in "First Map" are `tm_fill()` and `tm_dots()`.
+
+# First Map
+
+```{r}
+#| label: tmap setup
+#| echo: true
+#| warning: false
+#| message: false
+
+
+tmap_mode("plot")
+
+
+bav_first <- tm_shape(bavaria) +
+  tm_polygons()
+
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+#| label: Bavaria 1
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-cap: Bavaria
+
+bav_first
+
+```
+
+# Arranging maps on a slide
+
+```{r}
+#| label: arranging code
+#| echo: true
+#| fig-align: center
+#| fig-cap: Fill, Border, and Polygons
+
+bav_1 <- tm_shape(bavaria) +
+  tm_fill()
+
+bav_2 <- tm_shape(bavaria) +
+  tm_borders()
+
+bav_3 <- tm_shape(bavaria) +
+  tm_polygons()
+
+bav_3_looks <- tmap_arrange(bav_1, bav_2, bav_3, ncol = 3)
+
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+#| label: arranging - show
+#| echo: false
+#| fig-cap: Three presentations of the Bavaria map
+
+bav_3_looks
+
+
+```
+
+# Map of Europe -- Code
+
+```{r}
+#| label: europe map 1
+#| echo: true
+
+    map_europe <- tm_shape(europe_raster) +  
+                  tm_raster()  
+
+    map_europe2 <- map_europe +  
+                   tm_shape(europe_shape) +  
+                   tm_lines(alpha = 0.3)  
+
+    map_europe3 <- map_europe2  +  
+                   tm_shape(cities) +  
+                   tm_dots(size = 0.3, 
+                           col="red")  
+
+    map_europe3 <- map_europe3 +
+                   tm_legend(show = FALSE)
+
+```
+
+# Map of Europe
+
+```{r}
+#| label: map Eur 3
+#| warning: false
+#| message: false
+#| fig-align: center
+#| fig-height: 5
+#| fig-cap: Small scale map of Europe
+
+
+map_europe3
+
+```
+
+# here's another
+
+::: columns
+::: {.column width="50%"}
+bav1 \<- tm_shape(bavaria) + tm_fill(col = "aquamarine")
+
+bav2 \<- tm_shape(bavaria) + tm_fill(col = "aquamarine", alpha = 0.5)
+
+bav3 \<- tm_shape(bavaria) + tm_polygons(col = "aquamarine", border.col = "darkolivegreen")
+:::
+
+::: {.column width="50%"}
+bav4 \<- tm_shape(bavaria) + tm_borders(lwd = 2)
+
+bav5 \<- tm_shape(bavaria) + tm_borders(lty = 4)
+
+bav6 \<- tm_shape(bavaria) + tm_polygons(col = "#E2E2E2", border.alpha = 0.5, lwd = 3)
+
+tmap_arrange(bav1, bav1, bav3, bav4, bav5, bav6, ncol = 3)
+:::
+:::
+
+------------------------------------------------------------------------
+
+```{r}
+#| label: back to Bavaria
+#| echo: false
+#| fig-align: center
+#| fig-cap: mapping details
+
+
+bav1 <- tm_shape(bavaria) +
+  tm_fill(col = "aquamarine")
+bav2 <- tm_shape(bavaria) +
+  tm_fill(col = "aquamarine", alpha = 0.5)
+bav3 <- tm_shape(bavaria) +
+  tm_polygons(col = "aquamarine", border.col = "darkolivegreen")
+bav4 <- tm_shape(bavaria) +
+  tm_borders(lwd = 2)
+bav5 <- tm_shape(bavaria) +
+  tm_borders(lty = 4)
+bav6 <- tm_shape(bavaria) +
+  tm_polygons(col = "#E2E2E2", border.alpha = 0.5, lwd = 3)
+tmap_arrange(bav1, bav1, bav3, bav4, bav5, bav6, ncol = 3)
+```
+
+# Interactive maps
+
+```{r}
+#| label: Interactive maps 1
+#| echo: true
+#| eval: false
+
+tmap_mode("view")
+
+tm_shape(bavaria) + tm_polygons(col = "pop_development", midpoint = 0)
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+#| label: Interactive maps 2
+#| echo: false
+#| eval: true
+
+tmap_mode("view")
+
+tm_shape(bavaria) + tm_polygons(col = "pop_development", midpoint = 0)
+
+```
